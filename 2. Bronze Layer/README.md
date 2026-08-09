@@ -1,51 +1,51 @@
-# Bronze Layer
+# 🥉 Bronze Layer — Raw Ingestion
 
-## Overview
-The Bronze layer is the **raw ingestion layer** of the GlobalMart data pipeline. It stores data exactly as received from source files (CSV, JSON, Parquet), with no transformation or cleaning applied. This layer acts as the single source of truth for all raw, unprocessed data landing from Amazon S3 into Snowflake.
+![Layer](https://img.shields.io/badge/Layer-Bronze-CD7F32?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Automated-brightgreen?style=for-the-badge)
+![Engine](https://img.shields.io/badge/Snowflake-Snowpipe-29B5E8?style=for-the-badge&logo=snowflake)
 
-## Data Sources
-| Source | Format | Description |
+## 🎯 Why this layer exists
+
+GlobalMart receives data from **three completely different systems** — a point-of-sale system dropping CSV files, IoT sensors streaming JSON events, and a supplier/procurement system exporting Parquet files. Before any of this data can be trusted, cleaned, or analyzed, it needs a **safe, untouched landing zone**.
+
+That's the Bronze layer's entire job: **capture everything, exactly as it arrives, automatically — no exceptions, no cleanup, no data loss.** If something ever looks wrong three layers downstream in a dashboard, this is the layer you come back to and ask *"what did the source file actually say?"*
+
+## 🧩 What's built here
+
+- 📥 **Three raw tables** — one landing zone each for transactions, sensor events, and purchase orders
+- 🔄 **Snowflake Streams** on every raw table — a lightweight "what changed since I last looked" tracker that the Silver layer reads from
+- ⚡ **Snowpipes with auto-ingest** — the moment a file lands in S3, it's loaded into Snowflake within seconds. Nobody has to click "run" ever again
+- ✅ **Validation queries** — quick row-count sanity checks to confirm ingestion actually worked
+
+## 🔀 How data flows in
+
+```
+📁 S3 Bucket (file_csv/  file_json/  file_parquet/)
+        │
+        │  🔔  new file lands → S3 event fires
+        ▼
+⚡ Snowpipe (auto_ingest = true)
+        │
+        ▼
+🥉 Bronze Table  (csv_raw / json_raw / parquet_raw)
+        │
+        ▼
+🌊 Stream captures the new rows
+        │
+        ▼
+        → picked up by the Silver Layer
+```
+
+## 📦 What lands here
+
+| 🗂️ Source | Format | What it carries |
 |---|---|---|
-| Transactions | CSV | Point-of-sale transaction records from all stores |
-| Sensor Events | JSON | IoT sensor readings (temperature, humidity, footfall, etc.) from store devices |
-| Purchase Orders | Parquet | Supplier purchase order and delivery data |
+| 🛒 Store transactions | CSV | Every sale, across every store |
+| 📡 IoT sensors | JSON | Temperature, footfall, device health readings |
+| 🚚 Purchase orders | Parquet | What suppliers shipped, and when |
 
-## Architecture
-```
-S3 (file_csv/, file_json/, file_parquet/)
-        │
-        ▼  (Snowpipe, auto_ingest = true)
-Bronze Tables (raw schema)
-        │
-        ▼  (Streams capture change data)
-   → consumed by Silver layer tasks
-```
+## 💡 Good to know
 
-## Files in this folder
-
-| File | Purpose |
-|---|---|
-| `01_bronze_tables.sql` | Creates the three raw tables: `csv_raw`, `json_raw`, `parquet_raw` |
-| `02_bronze_initial_load.sql` | One-time manual `COPY INTO` to backfill any files already sitting in the S3 stage before Snowpipe was set up |
-| `03_bronze_streams.sql` | Creates Snowflake Streams (`csv_raw_stream`, `json_raw_stream`, `parquet_stream`) on each raw table to track new/changed rows for the Silver layer to consume |
-| `04_bronze_snowpipes.sql` | Creates Snowpipes (`csv_raw_pipe`, `json_raw_pipe`, `parquet_pipe`) with `auto_ingest = true`, so any new file dropped in the S3 stage is automatically loaded within seconds, no manual trigger needed |
-| `05_validate_bronze.sql` | Row-count and spot-check queries to confirm data has landed correctly in each raw table |
-
-## Key Tables
-
-**`raw.csv_raw`** — transaction_id, store_id, store_name, store_city, store_region, product_sku, product_name, category, quantity, unit_price, discount_pct, total_amount, payment_method, loyalty_points, load_ts, file_name
-
-**`raw.json_raw`** — event_id, event_type, store_id, store_name, event_ts, device_id, raw_payload (VARIANT), load_ts, source_file
-
-**`raw.parquet_raw`** — order_id, order_date, store_id, supplier_id, product_sku, category, unit_cost, total_cost, quantity_ordered, quantity_received, order_status, expected_delivery, actual_delivery, load_ts, source_file
-
-## How ingestion works
-1. A file is uploaded to the relevant S3 folder (`file_csv/`, `file_json/`, `file_parquet/`).
-2. S3 event notification fires → the matching Snowpipe picks it up automatically.
-3. Snowpipe runs `COPY INTO` in the background and loads the raw rows into the bronze table.
-4. The table's Stream captures these as new rows, ready for the Silver layer to process.
-
-## Notes
-- Bronze tables never get transformed or cleaned — they are an exact, auditable copy of the source files.
-- Each file should use a **unique filename** on upload. Snowpipe/COPY keeps a load history and will skip a file it has already loaded, even after the target table is truncated.
-- `file_name` / `source_file` columns preserve the original filename for traceability back to the source file.
+- Nothing is transformed here — Bronze is a **mirror of the source file**, kept for traceability and auditing
+- Every file needs a **unique filename** on upload — Snowflake remembers what it already loaded, even if the table is later truncated
+- If ingestion ever looks stuck, `SYSTEM$PIPE_STATUS()` on the relevant pipe is the first thing to check
