@@ -89,9 +89,9 @@ The final dashboard — **GlobalMart Enterprise Analytics Dashboard** — connec
 - Store-wise performance
 - An interactive month slicer
 
-📁 The dashboard file is available here: [`6. PowerBI/dashboard.pbix`](./6.%20PowerBI/dashboard.pbix)
+![GlobalMart Enterprise Analytics Dashboard](./6.%20PowerBI/dashboard_screenshot.png)
 
-*(Open in Power BI Desktop and hit **Refresh** to pull the latest data from Snowflake.)*
+*(Open [`6. PowerBI/dashboard.pbix`](./6.%20PowerBI/dashboard.pbix) in Power BI Desktop and hit **Refresh** to pull the latest data from Snowflake.)*
 
 ## 🚀 How It Runs
 
